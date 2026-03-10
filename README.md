@@ -7,13 +7,16 @@ A Chrome extension that applies a realistic CRT television effect to any video o
 ## Features
 
 - **Scanlines** — horizontal line pattern scaled to video resolution
+- **Phosphor grid** — RGB aperture grille shadow mask
+- **Interlacing** — alternating field simulation
 - **Screen curvature** — barrel distortion (full mode) or enhanced vignette (overlay mode)
 - **Chromatic aberration** — RGB channel offset for color fringing
-- **Bloom** — soft glow on bright areas via box blur
+- **Color bleed** — composite video chroma blur via YIQ color space
+- **Bloom** — soft glow on bright areas with screen halo
 - **Noise** — animated film grain
 - **Flicker** — subtle brightness oscillation
 
-All parameters are adjustable from 0–100 via the popup UI.
+All parameters are adjustable from 0-100 via the popup UI.
 
 ## Rendering modes
 
@@ -22,17 +25,20 @@ The extension automatically detects DRM-protected content and picks the best str
 | Mode | When | How |
 |------|------|-----|
 | **Full** | Unprotected video (e.g. YouTube) | Captures video frames into a WebGL texture and renders the full CRT effect on a canvas that replaces the video |
-| **Overlay** | DRM-protected video (e.g. Netflix) | Draws a semi-transparent scanline/noise/vignette overlay on top of the video — no pixel capture needed |
+| **Overlay** | DRM-protected video (e.g. Netflix, Crunchyroll) | Draws a semi-transparent scanline/noise/vignette overlay on top of the video — no pixel capture needed |
 
-The mode badge in the popup shows which mode is active. Chromatic aberration and bloom are disabled in overlay mode since they require pixel access.
+The mode badge in the popup shows which mode is active. Chromatic aberration, bloom, and color bleed only take effect in full mode since they require pixel access. Their sliders are always visible so you can configure them from any site.
 
 ## Presets
 
-| Preset | Scanlines | Curvature | Chromatic | Bloom | Noise | Flicker |
-|--------|-----------|-----------|-----------|-------|-------|---------|
-| Subtle | 30 | 20 | 15 | 20 | 10 | 5 |
-| Heavy  | 70 | 50 | 40 | 50 | 30 | 20 |
-| VHS    | 50 | 10 | 60 | 30 | 50 | 40 |
+| Preset | Scanlines | Curvature | Chromatic | Bloom | Noise | Flicker | Phosphor | Interlace | Color Bleed |
+|--------|-----------|-----------|-----------|-------|-------|---------|----------|-----------|-------------|
+| Subtle | 30 | 20 | 15 | 20 | 10 | 5 | 15 | 0 | 10 |
+| Heavy | 70 | 50 | 40 | 50 | 30 | 20 | 40 | 30 | 25 |
+| VHS | 50 | 10 | 60 | 30 | 50 | 40 | 0 | 20 | 60 |
+| Arcade | 80 | 30 | 20 | 35 | 15 | 10 | 70 | 0 | 15 |
+| Retro TV | 60 | 40 | 35 | 40 | 25 | 15 | 30 | 45 | 45 |
+| Late Night | 45 | 25 | 20 | 55 | 20 | 25 | 20 | 15 | 20 |
 
 ## Keyboard shortcut
 
