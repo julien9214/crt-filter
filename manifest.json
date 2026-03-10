@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Anime CRT TV Filter",
+  "version": "1.0.0",
+  "description": "Realistic CRT television filter for streaming anime — scanlines, phosphor glow, curvature, noise, and more.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CRT Filter"
+  },
+  "commands": {
+    "toggle-filter": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Toggle CRT filter on/off"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
