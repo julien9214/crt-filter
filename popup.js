@@ -46,11 +46,9 @@ function updateModeUI() {
     badge.className = 'mode-badge';
   }
 
-  // Hide full-only controls and their section label in overlay mode
+  // Show hint on signal section when in overlay mode
   const isOverlay = currentMode === 'overlay';
-  for (const el of document.querySelectorAll('.hideable')) {
-    el.classList.toggle('hidden-overlay', isOverlay);
-  }
+  document.getElementById('section-signal').classList.toggle('show-overlay-hint', isOverlay);
 }
 
 function getSettings() {

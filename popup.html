@@ -165,18 +165,15 @@ body {
 }
 .control input[type=range]::-webkit-slider-thumb:hover { background: #aaa; }
 
-/* Hidden controls/sections in overlay mode */
-.hideable {
-  transition: opacity 0.25s, max-height 0.25s ease, margin-bottom 0.25s ease, margin-top 0.25s ease;
+/* Full-mode-only hint in overlay mode */
+.overlay-hint {
+  font-size: 9px;
+  color: #665;
+  font-style: italic;
+  margin-left: 4px;
+  display: none;
 }
-.hidden-overlay {
-  opacity: 0;
-  max-height: 0 !important;
-  margin-bottom: 0 !important;
-  margin-top: 0 !important;
-  overflow: hidden;
-  pointer-events: none;
-}
+.show-overlay-hint .overlay-hint { display: inline; }
 </style>
 </head>
 <body>
@@ -224,17 +221,17 @@ body {
       <input type="range" id="curvature" min="0" max="100" value="20">
     </div>
 
-    <div class="section-label hideable" id="section-signal">Signal</div>
+    <div class="section-label" id="section-signal">Signal <span class="overlay-hint">full mode only</span></div>
 
-    <div class="control hideable" id="ctrl-chromatic">
+    <div class="control" id="ctrl-chromatic">
       <label>Chromatic Ab. <span class="val" id="val-chromatic">15</span></label>
       <input type="range" id="chromatic" min="0" max="100" value="15">
     </div>
-    <div class="control hideable" id="ctrl-colorbleed">
+    <div class="control" id="ctrl-colorbleed">
       <label>Color Bleed <span class="val" id="val-colorbleed">10</span></label>
       <input type="range" id="colorbleed" min="0" max="100" value="10">
     </div>
-    <div class="control hideable" id="ctrl-bloom">
+    <div class="control" id="ctrl-bloom">
       <label>Bloom <span class="val" id="val-bloom">20</span></label>
       <input type="range" id="bloom" min="0" max="100" value="20">
     </div>
