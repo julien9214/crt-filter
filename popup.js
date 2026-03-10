@@ -12,6 +12,7 @@ const FULL_ONLY = ['chromatic', 'bloom', 'colorbleed']; // Need video pixel data
 
 let currentMode = null;
 let saveTimeout = null;
+let activeDomain = null;
 
 function updateUI(settings) {
   document.getElementById('toggle').checked = settings.enabled !== false;
@@ -60,7 +61,22 @@ function getSettings() {
 }
 
 function save(settings) {
-  chrome.storage.sync.set({ crt: settings });
+  // Save slider values globally (shared across sites)
+  const { enabled, ...sliders } = settings;
+  chrome.storage.sync.set({ crt: sliders });
+
+  // Save enabled state per-site
+  if (activeDomain) {
+    chrome.storage.local.get('enabledSites', (data) => {
+      const sites = data.enabledSites || {};
+      if (enabled) {
+        sites[activeDomain] = true;
+      } else {
+        delete sites[activeDomain];
+      }
+      chrome.storage.local.set({ enabledSites: sites });
+    });
+  }
 }
 
 // Debounced save — batches rapid slider changes
@@ -136,8 +152,28 @@ async function queryMode() {
   } catch (_) { /* tab might not have content script */ }
 }
 
-// Load saved settings
-chrome.storage.sync.get('crt', (data) => {
-  updateUI(data.crt || PRESETS.subtle);
-  queryMode();
-});
+// Load saved settings + per-site enabled state
+async function init() {
+  // Get active tab domain
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      try { activeDomain = new URL(tab.url).hostname; } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Load global slider settings
+  chrome.storage.sync.get('crt', (syncData) => {
+    const sliders = syncData.crt || PRESETS.subtle;
+
+    // Load per-site enabled state
+    chrome.storage.local.get('enabledSites', (localData) => {
+      const sites = localData.enabledSites || {};
+      const enabled = activeDomain ? !!sites[activeDomain] : false;
+      updateUI({ ...sliders, enabled });
+      queryMode();
+    });
+  });
+}
+
+init();

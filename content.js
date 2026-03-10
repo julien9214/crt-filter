@@ -3,14 +3,14 @@
 
   // ── Default settings ──────────────────────────────────────────────
   const DEFAULTS = {
-    enabled: true,
     scanlines: 30, curvature: 20, chromatic: 15,
     bloom: 20, noise: 10, flicker: 5,
     phosphor: 15, interlace: 0, colorbleed: 10,
   };
 
   let settings = { ...DEFAULTS };
-  let filterEnabled = true;
+  let filterEnabled = false;  // disabled by default, per-site opt-in
+  const siteDomain = location.hostname;
   let crtMode = null;           // 'full' | 'overlay'
   let video = null;
   let canvas = null;
@@ -540,9 +540,9 @@ void main() {
   }
 
   function render() {
-    if (!filterEnabled || !settings.enabled || document.hidden) {
+    if (!filterEnabled || document.hidden) {
       if (canvas) canvas.style.display = 'none';
-      if (video && video.style.opacity === '0' && (!filterEnabled || !settings.enabled)) {
+      if (video && video.style.opacity === '0' && !filterEnabled) {
         video.style.opacity = '1';
       }
       animFrameId = requestAnimationFrame(render);
@@ -705,31 +705,44 @@ void main() {
   // ── Settings sync ─────────────────────────────────────────────────
   chrome.storage.sync.get('crt', (data) => {
     if (data.crt) {
-      settings = { ...DEFAULTS, ...data.crt };
-      filterEnabled = settings.enabled !== false;
+      const { enabled, ...rest } = data.crt;  // ignore legacy enabled flag
+      settings = { ...DEFAULTS, ...rest };
+    }
+  });
+
+  // Load per-site enabled state + cached DRM results
+  chrome.storage.local.get(['enabledSites', 'drmCache'], (data) => {
+    if (data.drmCache) drmCache = data.drmCache;
+    if (data.enabledSites && data.enabledSites[siteDomain]) {
+      filterEnabled = true;
     }
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync' && changes.crt) {
-      const newVal = changes.crt.newValue || DEFAULTS;
-      settings = { ...DEFAULTS, ...newVal };
-      filterEnabled = settings.enabled !== false;
+      const { enabled, ...rest } = changes.crt.newValue || DEFAULTS;
+      settings = { ...DEFAULTS, ...rest };
+    }
+    if (area === 'local' && changes.enabledSites) {
+      const sites = changes.enabledSites.newValue || {};
+      filterEnabled = !!sites[siteDomain];
     }
   });
 
-  // Load cached DRM results
-  chrome.storage.local.get('drmCache', (data) => {
-    if (data.drmCache) drmCache = data.drmCache;
-  });
-
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'getCRTMode') {
-      sendResponse({ mode: crtMode || 'none' });
+      sendResponse({ mode: crtMode || 'none', enabled: filterEnabled });
     } else if (msg.type === 'toggleCRT') {
       filterEnabled = !filterEnabled;
-      settings.enabled = filterEnabled;
-      chrome.storage.sync.set({ crt: settings });
+      chrome.storage.local.get('enabledSites', (data) => {
+        const sites = data.enabledSites || {};
+        if (filterEnabled) {
+          sites[siteDomain] = true;
+        } else {
+          delete sites[siteDomain];
+        }
+        chrome.storage.local.set({ enabledSites: sites });
+      });
     }
     return false;
   });
