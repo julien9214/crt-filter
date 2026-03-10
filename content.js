@@ -6,6 +6,7 @@
     enabled: true,
     scanlines: 30, curvature: 20, chromatic: 15,
     bloom: 20, noise: 10, flicker: 5,
+    phosphor: 15, interlace: 0, colorbleed: 10,
   };
 
   let settings = { ...DEFAULTS };
@@ -21,6 +22,7 @@
   let quadVBO = null;
   let animFrameId = null;
   let startTime = 0;
+  let frameCount = 0;
   let drmChecked = false;
   let drmCache = {};            // domain → 'full' | 'overlay'
   let resizeObserver = null;
@@ -51,6 +53,7 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform int u_mode;           // 0 = full, 1 = overlay
 uniform float u_scanlineCount; // video native height for consistent scanlines
+uniform float u_frame;        // frame counter for interlacing
 
 uniform float u_scanlines;
 uniform float u_curvature;
@@ -58,6 +61,9 @@ uniform float u_chromatic;
 uniform float u_bloom;
 uniform float u_noise;
 uniform float u_flicker;
+uniform float u_phosphor;
+uniform float u_interlace;
+uniform float u_colorbleed;
 
 // ── Barrel distortion ──────────────────────────────────────────
 vec2 barrelDistort(vec2 uv, float amt) {
@@ -71,6 +77,51 @@ float hash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
+}
+
+// ── Shadow mask (phosphor grid) ────────────────────────────────
+vec3 shadowMask(vec2 fragCoord, float strength) {
+  // Aperture grille: vertical RGB stripes
+  int subpx = int(mod(fragCoord.x, 3.0));
+  vec3 mask = vec3(0.25);
+  if (subpx == 0) mask.r = 1.0;
+  else if (subpx == 1) mask.g = 1.0;
+  else mask.b = 1.0;
+  // Subtle horizontal gap between pixel rows
+  float rowGap = 1.0 - 0.15 * step(0.85, fract(fragCoord.y / 2.0));
+  mask *= rowGap;
+  return mix(vec3(1.0), mask, strength);
+}
+
+// ── Color bleeding (composite video chroma blur) ───────────────
+vec3 applyColorBleed(vec2 uv, vec3 baseCol, float amount) {
+  float blurW = amount * 0.004;
+
+  // YIQ conversion
+  const mat3 rgb2yiq = mat3(
+    0.299,  0.596,  0.211,
+    0.587, -0.274, -0.523,
+    0.114, -0.322,  0.312
+  );
+  const mat3 yiq2rgb = mat3(
+    1.0,  1.0,  1.0,
+    0.956, -0.272, -1.106,
+    0.621, -0.647,  1.703
+  );
+
+  // Keep luma from base color (which may have chromatic aberration)
+  vec3 centerYIQ = rgb2yiq * baseCol;
+
+  // Blur I and Q channels horizontally (5 taps)
+  float weights[5] = float[](0.1, 0.25, 0.3, 0.25, 0.1);
+  vec2 chromaSum = vec2(0.0);
+  for (int i = 0; i < 5; i++) {
+    float offset = float(i - 2) * blurW;
+    vec3 sampleYIQ = rgb2yiq * texture(u_video, uv + vec2(offset, 0.0)).rgb;
+    chromaSum += sampleYIQ.yz * weights[i];
+  }
+
+  return yiq2rgb * vec3(centerYIQ.x, chromaSum);
 }
 
 void main() {
@@ -94,21 +145,45 @@ void main() {
     col.g = texture(u_video, uv).g;
     col.b = texture(u_video, uv - chromOff).b;
 
-    // Bloom (box blur approximation)
+    // Color bleeding
+    if (u_colorbleed > 0.0) {
+      col = applyColorBleed(uv, col, u_colorbleed);
+    }
+
+    // Bloom — 9-sample Gaussian cross (replaces 25-sample box blur)
     if (u_bloom > 0.0) {
-      float blurSize = u_bloom * 0.002;
-      vec3 blurred = vec3(0.0);
-      float total = 0.0;
-      for (float x = -2.0; x <= 2.0; x += 1.0) {
-        for (float y = -2.0; y <= 2.0; y += 1.0) {
-          vec2 off = vec2(x, y) * blurSize;
-          float w = 1.0 - length(vec2(x, y)) * 0.15;
-          blurred += texture(u_video, uv + off).rgb * w;
-          total += w;
-        }
-      }
-      blurred /= total;
-      col = mix(col, max(col, blurred), u_bloom * 0.008);
+      float bs = u_bloom * 0.002;
+      vec3 bloom = col * 0.40;
+      // Inner ring
+      bloom += texture(u_video, uv + vec2(bs, 0.0)).rgb * 0.15;
+      bloom += texture(u_video, uv - vec2(bs, 0.0)).rgb * 0.15;
+      bloom += texture(u_video, uv + vec2(0.0, bs)).rgb * 0.15;
+      bloom += texture(u_video, uv - vec2(0.0, bs)).rgb * 0.15;
+      // Outer ring
+      float bs2 = bs * 2.5;
+      bloom += texture(u_video, uv + vec2(bs2, 0.0)).rgb * 0.05;
+      bloom += texture(u_video, uv - vec2(bs2, 0.0)).rgb * 0.05;
+      bloom += texture(u_video, uv + vec2(0.0, bs2)).rgb * 0.05;
+      bloom += texture(u_video, uv - vec2(0.0, bs2)).rgb * 0.05;
+      bloom /= 1.2; // normalize (0.4 + 0.15*4 + 0.05*4)
+
+      col = mix(col, max(col, bloom), u_bloom * 0.01);
+
+      // Screen glow — wider, softer halo
+      float gs = u_bloom * 0.008;
+      vec3 glow = vec3(0.0);
+      glow += texture(u_video, uv + vec2(gs, 0.0)).rgb;
+      glow += texture(u_video, uv - vec2(gs, 0.0)).rgb;
+      glow += texture(u_video, uv + vec2(0.0, gs)).rgb;
+      glow += texture(u_video, uv - vec2(0.0, gs)).rgb;
+      glow *= 0.25;
+      col += max(glow - col, 0.0) * u_bloom * 0.003;
+    }
+
+    // Phosphor shadow mask
+    if (u_phosphor > 0.0) {
+      vec2 fragCoord = uv * u_resolution;
+      col *= shadowMask(fragCoord, u_phosphor * 0.01);
     }
 
     // Scanlines
@@ -118,12 +193,24 @@ void main() {
     float scanStr = u_scanlines * 0.008;
     col *= 1.0 - scanStr * (1.0 - scanline);
 
+    // Interlacing
+    if (u_interlace > 0.0) {
+      float intStr = u_interlace * 0.008;
+      float scanPos = uv.y * u_scanlineCount;
+      float lineIdx = floor(scanPos);
+      float field = mod(u_frame, 2.0);
+      float isEvenLine = step(0.5, mod(lineIdx, 2.0));
+      float isEvenField = step(0.5, field);
+      float isActive = 1.0 - abs(isEvenLine - isEvenField);
+      col *= mix(1.0, isActive * 0.55 + 0.45, intStr);
+    }
+
     // Noise
     float n = hash(uv * u_resolution + u_time * 1000.0);
     col += (n - 0.5) * u_noise * 0.003;
 
     // Flicker
-    float flickerAmt = u_flicker * 0.003;
+    float flickerAmt = u_flicker * 0.0015;
     float flicker = 1.0 + (sin(u_time * 8.0) * sin(u_time * 13.7) * sin(u_time * 27.3)) * flickerAmt;
     col *= flicker;
 
@@ -137,12 +224,9 @@ void main() {
 
   } else {
     // ── OVERLAY MODE ─────────────────────────────────────────────
-    // Use original UVs so effects always cover the full video area.
-    // Curvature is expressed through enhanced vignette instead of
-    // barrel distortion, so there are no transparent gaps at edges.
     vec2 uv = v_uv;
 
-    // Scanlines — reduced multiplier to avoid heavy dimming
+    // Scanlines — reduced multiplier
     float scanFreq = u_scanlineCount * 0.8;
     float scanline = sin(uv.y * scanFreq * 3.14159) * 0.5 + 0.5;
     scanline = pow(scanline, 1.5);
@@ -153,21 +237,41 @@ void main() {
     float noiseAmt = u_noise * 0.0015;
 
     // Flicker
-    float flickerAmt = u_flicker * 0.002;
+    float flickerAmt = u_flicker * 0.001;
     float flicker = 1.0 + (sin(u_time * 8.0) * sin(u_time * 13.7) * sin(u_time * 27.3)) * flickerAmt;
 
-    // Vignette — only at edges, much lighter in the center
+    // Vignette
     vec2 vigUV = uv * (1.0 - uv);
     float vig = vigUV.x * vigUV.y * 15.0;
     float vigPow = 0.25 - u_curvature * 0.001;
     vig = pow(vig, max(vigPow, 0.08));
 
-    // Build alpha mask — lighter overall to preserve brightness
+    // Build alpha mask
     float alpha = 0.0;
     alpha += scanStr * (1.0 - scanline);
     alpha += abs(n - 0.5) * noiseAmt;
     alpha += (1.0 - flicker) * 0.3;
     alpha += (1.0 - vig) * 0.35;
+
+    // Interlacing in overlay — darken alternate fields
+    if (u_interlace > 0.0) {
+      float intStr = u_interlace * 0.005;
+      float scanPos = uv.y * u_scanlineCount;
+      float lineIdx = floor(scanPos);
+      float field = mod(u_frame, 2.0);
+      float isEvenLine = step(0.5, mod(lineIdx, 2.0));
+      float isEvenField = step(0.5, field);
+      float isInactive = abs(isEvenLine - isEvenField);
+      alpha += isInactive * intStr;
+    }
+
+    // Phosphor mask in overlay — subtle darkening pattern
+    if (u_phosphor > 0.0) {
+      vec2 fragCoord = uv * u_resolution;
+      vec3 mask = shadowMask(fragCoord, u_phosphor * 0.01);
+      float maskDim = 1.0 - (mask.r + mask.g + mask.b) / 3.0;
+      alpha += maskDim * 0.3;
+    }
 
     fragColor = vec4(0.0, 0.0, 0.0, clamp(alpha, 0.0, 0.55));
   }
@@ -222,9 +326,10 @@ void main() {
 
   function cacheUniforms() {
     const names = [
-      'u_video', 'u_resolution', 'u_time', 'u_mode', 'u_scanlineCount',
+      'u_video', 'u_resolution', 'u_time', 'u_mode', 'u_scanlineCount', 'u_frame',
       'u_scanlines', 'u_curvature', 'u_chromatic',
       'u_bloom', 'u_noise', 'u_flicker',
+      'u_phosphor', 'u_interlace', 'u_colorbleed',
     ];
     for (const n of names) {
       uniforms[n] = gl.getUniformLocation(program, n);
@@ -254,7 +359,6 @@ void main() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.deleteFramebuffer(fb);
         if (video.videoWidth > 0 && video.readyState >= 2) {
-          // Video has data but texture upload failed → DRM protected
           log('DRM detected (framebuffer incomplete on loaded video), using overlay mode');
           drmCache[domain] = 'overlay';
           chrome.storage.local.set({ drmCache });
@@ -265,7 +369,7 @@ void main() {
         return;
       }
 
-      // Read a larger region from the center for better accuracy
+      // Read a region from the center
       const tw = video.videoWidth || 64;
       const th = video.videoHeight || 64;
       const sampleSize = 8;
@@ -286,9 +390,9 @@ void main() {
         }
       }
 
-      // If all black but video is playing, could be a dark scene — retry a few times
+      // If all black but video is playing, could be a dark scene — retry
       if (allBlack && retryCount < 3 && !video.paused) {
-        setTimeout(() => detectDRM(callback, retryCount + 1), 500);
+        setTimeout(() => detectDRM(callback, retryCount + 1), 300);
         return;
       }
 
@@ -307,14 +411,12 @@ void main() {
   let positionCanvas = () => {};
 
   function initOverlay() {
-    if (canvas) return; // already initialized
+    if (canvas) return;
     log('Initializing overlay for video', video.videoWidth, 'x', video.videoHeight, 'readyState:', video.readyState);
 
     canvas = document.createElement('canvas');
     canvas.id = 'crt-filter-canvas';
 
-    // Insert canvas as a sibling right after the video, inside the same parent.
-    // This ensures the canvas is within the fullscreen element's subtree.
     const parent = video.parentElement || document.documentElement;
     if (window.getComputedStyle(parent).position === 'static') {
       parent.style.position = 'relative';
@@ -327,17 +429,14 @@ void main() {
       image-rendering: auto;
     `;
 
-    // Insert right after the video
     if (video.nextSibling) {
       parent.insertBefore(canvas, video.nextSibling);
     } else {
       parent.appendChild(canvas);
     }
 
-    // Position canvas to exactly overlay the video within its parent
     positionCanvas = () => {
       if (!video || !canvas) return;
-      // Use video's offset within its parent
       canvas.style.left = video.offsetLeft + 'px';
       canvas.style.top = video.offsetTop + 'px';
       canvas.style.width = video.offsetWidth + 'px';
@@ -383,29 +482,27 @@ void main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    // Enable alpha blending for overlay mode
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     positionCanvas();
     startTime = performance.now() / 1000;
+    frameCount = 0;
 
-    // Resize tracking — multiple strategies for cross-iframe reliability
+    // Resize tracking
     resizeObserver = new ResizeObserver(positionCanvas);
     resizeObserver.observe(video);
     if (video.parentElement) resizeObserver.observe(video.parentElement);
-    // Also observe the documentElement (catches iframe resize from fullscreen)
     resizeObserver.observe(document.documentElement);
     window.addEventListener('resize', positionCanvas);
     document.addEventListener('fullscreenchange', () => {
-      // Fullscreen transitions take time; reposition multiple times
       positionCanvas();
       setTimeout(positionCanvas, 50);
       setTimeout(positionCanvas, 200);
       setTimeout(positionCanvas, 500);
     });
 
-    // Wait for video to have data, then detect DRM
+    // Wait for video data, then detect DRM
     function onVideoReady() {
       if (video.readyState >= 2 && !drmChecked) {
         drmChecked = true;
@@ -432,7 +529,7 @@ void main() {
           console.log('CRT: Timeout waiting for video data, using overlay mode');
           startRenderLoop();
         }
-      }, 5000);
+      }, 3000); // Reduced from 5s to 3s
     }
   }
 
@@ -444,7 +541,6 @@ void main() {
 
   function render() {
     if (!filterEnabled || !settings.enabled || document.hidden) {
-      // Hide canvas and restore video when disabled
       if (canvas) canvas.style.display = 'none';
       if (video && video.style.opacity === '0' && (!filterEnabled || !settings.enabled)) {
         video.style.opacity = '1';
@@ -453,7 +549,6 @@ void main() {
       return;
     }
 
-    // Show canvas when re-enabled
     if (canvas && canvas.style.display === 'none') {
       canvas.style.display = '';
     }
@@ -463,7 +558,6 @@ void main() {
       return;
     }
 
-    // Re-hide video in full mode when re-enabled
     if (crtMode === 'full' && video.style.opacity !== '0') {
       video.style.opacity = '0';
     }
@@ -484,8 +578,8 @@ void main() {
     gl.uniform2f(uniforms.u_resolution, canvas.width, canvas.height);
     gl.uniform1f(uniforms.u_time, performance.now() / 1000 - startTime);
     gl.uniform1i(uniforms.u_mode, mode);
-
     gl.uniform1f(uniforms.u_scanlineCount, video.videoHeight || 480);
+    gl.uniform1f(uniforms.u_frame, frameCount);
 
     gl.uniform1f(uniforms.u_scanlines, settings.scanlines);
     gl.uniform1f(uniforms.u_curvature, settings.curvature);
@@ -493,6 +587,9 @@ void main() {
     gl.uniform1f(uniforms.u_bloom, settings.bloom);
     gl.uniform1f(uniforms.u_noise, settings.noise);
     gl.uniform1f(uniforms.u_flicker, settings.flicker);
+    gl.uniform1f(uniforms.u_phosphor, settings.phosphor);
+    gl.uniform1f(uniforms.u_interlace, settings.interlace);
+    gl.uniform1f(uniforms.u_colorbleed, settings.colorbleed);
 
     if (mode === 0) {
       gl.disable(gl.BLEND);
@@ -505,6 +602,7 @@ void main() {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
 
+    frameCount++;
     animFrameId = requestAnimationFrame(render);
   }
 
@@ -518,7 +616,6 @@ void main() {
     for (const v of videos) {
       const rect = v.getBoundingClientRect();
       const area = rect.width * rect.height;
-      // Skip videos with no visible dimensions (placeholders)
       if (rect.width < 10 || rect.height < 10) continue;
       if (area > bestArea) {
         bestArea = area;
@@ -529,7 +626,6 @@ void main() {
   }
 
   function tryAttach() {
-    // If our current video was removed from the DOM, clean up
     if (video && !document.contains(video)) {
       log('Current video removed from DOM, cleaning up');
       cleanup();
@@ -574,6 +670,7 @@ void main() {
     drmChecked = false;
     crtMode = null;
     video = null;
+    frameCount = 0;
   }
 
   // ── Observe DOM for dynamically inserted videos ───────────────────
@@ -597,14 +694,12 @@ void main() {
 
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  // Initial check + periodic retry (some players add video late or replace elements)
+  // Initial check + periodic retry
   tryAttach();
   let retryInterval = setInterval(() => {
-    // Keep retrying if no video, or if current video was removed from DOM
     if (video && document.contains(video)) return;
     tryAttach();
   }, 2000);
-  // Stop retrying after 60 seconds
   setTimeout(() => clearInterval(retryInterval), 60000);
 
   // ── Settings sync ─────────────────────────────────────────────────

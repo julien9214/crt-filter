@@ -1,13 +1,17 @@
 const PRESETS = {
-  subtle:  { scanlines: 30, curvature: 20, chromatic: 15, bloom: 20, noise: 10, flicker: 5 },
-  heavy:   { scanlines: 70, curvature: 50, chromatic: 40, bloom: 50, noise: 30, flicker: 20 },
-  vhs:     { scanlines: 50, curvature: 10, chromatic: 60, bloom: 30, noise: 50, flicker: 40 },
+  subtle:    { scanlines: 30, curvature: 20, chromatic: 15, bloom: 20, noise: 10, flicker: 5,  phosphor: 15, interlace: 0,  colorbleed: 10 },
+  heavy:     { scanlines: 70, curvature: 50, chromatic: 40, bloom: 50, noise: 30, flicker: 20, phosphor: 40, interlace: 30, colorbleed: 25 },
+  vhs:       { scanlines: 50, curvature: 10, chromatic: 60, bloom: 30, noise: 50, flicker: 40, phosphor: 0,  interlace: 20, colorbleed: 60 },
+  arcade:    { scanlines: 80, curvature: 30, chromatic: 20, bloom: 35, noise: 15, flicker: 10, phosphor: 70, interlace: 0,  colorbleed: 15 },
+  retro:     { scanlines: 60, curvature: 40, chromatic: 35, bloom: 40, noise: 25, flicker: 15, phosphor: 30, interlace: 45, colorbleed: 45 },
+  latenight: { scanlines: 45, curvature: 25, chromatic: 20, bloom: 55, noise: 20, flicker: 25, phosphor: 20, interlace: 15, colorbleed: 20 },
 };
 
-const PARAMS = ['scanlines', 'curvature', 'chromatic', 'bloom', 'noise', 'flicker'];
-const FULL_ONLY = ['chromatic', 'bloom']; // These need video pixel data
+const PARAMS = ['scanlines', 'curvature', 'chromatic', 'bloom', 'noise', 'flicker', 'phosphor', 'interlace', 'colorbleed'];
+const FULL_ONLY = ['chromatic', 'bloom', 'colorbleed']; // Need video pixel data
 
 let currentMode = null;
+let saveTimeout = null;
 
 function updateUI(settings) {
   document.getElementById('toggle').checked = settings.enabled !== false;
@@ -38,13 +42,14 @@ function updateModeUI() {
     badge.textContent = 'Overlay';
     badge.className = 'mode-badge overlay';
   } else {
-    badge.textContent = '—';
+    badge.textContent = '\u2014';
     badge.className = 'mode-badge';
   }
 
-  for (const p of FULL_ONLY) {
-    const ctrl = document.getElementById('ctrl-' + p);
-    ctrl.classList.toggle('disabled', currentMode === 'overlay');
+  // Hide full-only controls and their section label in overlay mode
+  const isOverlay = currentMode === 'overlay';
+  for (const el of document.querySelectorAll('.hideable')) {
+    el.classList.toggle('hidden-overlay', isOverlay);
   }
 }
 
@@ -60,6 +65,40 @@ function save(settings) {
   chrome.storage.sync.set({ crt: settings });
 }
 
+// Debounced save — batches rapid slider changes
+function debouncedSave(settings) {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => save(settings), 50);
+}
+
+// Animated preset transitions
+function animateToPreset(preset) {
+  const duration = 180;
+  const start = performance.now();
+  const from = {};
+  for (const p of PARAMS) {
+    from[p] = parseInt(document.getElementById(p).value, 10);
+  }
+
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = t * (2 - t); // ease-out quad
+    for (const p of PARAMS) {
+      const val = Math.round(from[p] + (preset[p] - from[p]) * ease);
+      document.getElementById(p).value = val;
+      document.getElementById('val-' + p).textContent = val;
+    }
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      const settings = getSettings();
+      updatePresetButtons(settings);
+      save(settings);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 // Toggle
 document.getElementById('toggle').addEventListener('change', () => save(getSettings()));
 
@@ -70,21 +109,18 @@ for (const p of PARAMS) {
     document.getElementById('val-' + p).textContent = slider.value;
     const settings = getSettings();
     updatePresetButtons(settings);
-    save(settings);
+    debouncedSave(settings);
   });
 }
 
-// Presets
+// Presets — animated
 document.querySelectorAll('.preset-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const preset = PRESETS[btn.dataset.preset];
-    for (const p of PARAMS) {
-      document.getElementById(p).value = preset[p];
-      document.getElementById('val-' + p).textContent = preset[p];
-    }
-    const settings = getSettings();
-    updatePresetButtons(settings);
-    save(settings);
+    // Immediately highlight the button
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    animateToPreset(preset);
   });
 });
 

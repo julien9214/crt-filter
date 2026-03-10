@@ -5,40 +5,67 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  width: 260px;
-  background: #1a1a1a;
+  width: 272px;
+  background: #141414;
   color: #ccc;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
-  padding: 16px;
+  padding: 0;
 }
-h1 {
+
+/* ── Header with CRT flair ── */
+.header {
+  padding: 14px 16px 12px;
+  background: linear-gradient(180deg, #1e1e1e 0%, #141414 100%);
+  border-bottom: 1px solid #2a2a2a;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+  pointer-events: none;
+}
+.header h1 {
   font-size: 14px;
-  color: #fff;
-  margin-bottom: 12px;
+  color: #e0e0e0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
+  letter-spacing: 0.5px;
 }
+
 .mode-badge {
   font-size: 10px;
-  font-weight: 400;
-  padding: 2px 6px;
+  font-weight: 500;
+  padding: 2px 7px;
   border-radius: 3px;
-  background: #333;
-  color: #888;
+  background: #252525;
+  color: #666;
+  letter-spacing: 0.3px;
 }
-.mode-badge.full { background: #1a3a1a; color: #4a4; }
-.mode-badge.overlay { background: #3a3a1a; color: #aa4; }
+.mode-badge.full { background: #1a3a1a; color: #5b5; }
+.mode-badge.overlay { background: #3a3a1a; color: #bb5; }
 
-/* Toggle */
+.body { padding: 14px 16px 16px; }
+
+/* ── Toggle ── */
 .toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #252525;
 }
 .switch {
   position: relative;
@@ -46,15 +73,15 @@ h1 {
   height: 22px;
 }
 .switch input { opacity: 0; width: 0; height: 0; }
-.slider {
+.slider-toggle {
   position: absolute;
   inset: 0;
-  background: #444;
+  background: #333;
   border-radius: 11px;
   cursor: pointer;
   transition: background 0.2s;
 }
-.slider::before {
+.slider-toggle::before {
   content: '';
   position: absolute;
   width: 16px;
@@ -65,106 +92,163 @@ h1 {
   border-radius: 50%;
   transition: transform 0.2s;
 }
-.switch input:checked + .slider { background: #4a4; }
-.switch input:checked + .slider::before { transform: translateX(18px); }
+.switch input:checked + .slider-toggle { background: #4a4; }
+.switch input:checked + .slider-toggle::before { transform: translateX(18px); }
 
-/* Presets */
+/* ── Presets ── */
 .presets {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
   margin-bottom: 14px;
 }
 .preset-btn {
-  flex: 1;
-  padding: 6px 0;
-  background: #2a2a2a;
-  color: #aaa;
-  border: 1px solid #444;
+  padding: 5px 0;
+  background: #1e1e1e;
+  color: #888;
+  border: 1px solid #333;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s;
+  font-family: inherit;
 }
-.preset-btn:hover { background: #333; color: #fff; }
-.preset-btn.active { background: #333; color: #fff; border-color: #666; }
+.preset-btn:hover { background: #282828; color: #ccc; border-color: #444; }
+.preset-btn.active { background: #282828; color: #fff; border-color: #555; }
 
-/* Sliders */
+/* ── Section labels ── */
+.section-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: #555;
+  margin: 12px 0 8px;
+}
+.section-label:first-of-type { margin-top: 2px; }
+
+/* ── Slider controls ── */
 .control {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  transition: opacity 0.25s, max-height 0.25s ease, margin-bottom 0.25s ease;
 }
 .control label {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   font-size: 11px;
-  color: #999;
+  color: #888;
 }
-.control label span.val { color: #ccc; }
+.control label span.val { color: #bbb; font-variant-numeric: tabular-nums; }
 .control input[type=range] {
+  display: block;
   width: 100%;
-  height: 4px;
+  height: 14px;
   -webkit-appearance: none;
   appearance: none;
-  background: #333;
-  border-radius: 2px;
+  background: transparent;
   outline: none;
+}
+.control input[type=range]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #282828;
+  border-radius: 2px;
 }
 .control input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #888;
+  width: 13px;
+  height: 13px;
+  background: #777;
   border-radius: 50%;
   cursor: pointer;
+  margin-top: -4.5px;
+  transition: background 0.15s;
 }
 .control input[type=range]::-webkit-slider-thumb:hover { background: #aaa; }
-.control.disabled label { color: #555; }
-.control.disabled input[type=range] { opacity: 0.3; pointer-events: none; }
+
+/* Hidden controls/sections in overlay mode */
+.hideable {
+  transition: opacity 0.25s, max-height 0.25s ease, margin-bottom 0.25s ease, margin-top 0.25s ease;
+}
+.hidden-overlay {
+  opacity: 0;
+  max-height: 0 !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+  overflow: hidden;
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
-  <h1>
-    CRT Filter
-    <span id="modeBadge" class="mode-badge">—</span>
-  </h1>
-
-  <div class="toggle-row">
-    <span>Enabled</span>
-    <label class="switch">
-      <input type="checkbox" id="toggle" checked>
-      <span class="slider"></span>
-    </label>
+  <div class="header">
+    <h1>
+      CRT Filter
+      <span id="modeBadge" class="mode-badge">&mdash;</span>
+    </h1>
   </div>
 
-  <div class="presets">
-    <button class="preset-btn" data-preset="subtle">Subtle</button>
-    <button class="preset-btn" data-preset="heavy">Heavy</button>
-    <button class="preset-btn" data-preset="vhs">VHS</button>
-  </div>
+  <div class="body">
+    <div class="toggle-row">
+      <span>Enabled</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle" checked>
+        <span class="slider-toggle"></span>
+      </label>
+    </div>
 
-  <div class="control" id="ctrl-scanlines">
-    <label>Scanlines <span class="val" id="val-scanlines">30</span></label>
-    <input type="range" id="scanlines" min="0" max="100" value="30">
-  </div>
-  <div class="control" id="ctrl-curvature">
-    <label>Curvature <span class="val" id="val-curvature">20</span></label>
-    <input type="range" id="curvature" min="0" max="100" value="20">
-  </div>
-  <div class="control" id="ctrl-chromatic">
-    <label>Chromatic Ab. <span class="val" id="val-chromatic">15</span></label>
-    <input type="range" id="chromatic" min="0" max="100" value="15">
-  </div>
-  <div class="control" id="ctrl-bloom">
-    <label>Bloom <span class="val" id="val-bloom">20</span></label>
-    <input type="range" id="bloom" min="0" max="100" value="20">
-  </div>
-  <div class="control" id="ctrl-noise">
-    <label>Noise <span class="val" id="val-noise">10</span></label>
-    <input type="range" id="noise" min="0" max="100" value="10">
-  </div>
-  <div class="control" id="ctrl-flicker">
-    <label>Flicker <span class="val" id="val-flicker">5</span></label>
-    <input type="range" id="flicker" min="0" max="100" value="5">
+    <div class="presets">
+      <button class="preset-btn" data-preset="subtle">Subtle</button>
+      <button class="preset-btn" data-preset="heavy">Heavy</button>
+      <button class="preset-btn" data-preset="vhs">VHS</button>
+      <button class="preset-btn" data-preset="arcade">Arcade</button>
+      <button class="preset-btn" data-preset="retro">Retro TV</button>
+      <button class="preset-btn" data-preset="latenight">Late Night</button>
+    </div>
+
+    <div class="section-label">Screen</div>
+
+    <div class="control" id="ctrl-scanlines">
+      <label>Scanlines <span class="val" id="val-scanlines">30</span></label>
+      <input type="range" id="scanlines" min="0" max="100" value="30">
+    </div>
+    <div class="control" id="ctrl-phosphor">
+      <label>Phosphor <span class="val" id="val-phosphor">15</span></label>
+      <input type="range" id="phosphor" min="0" max="100" value="15">
+    </div>
+    <div class="control" id="ctrl-interlace">
+      <label>Interlace <span class="val" id="val-interlace">0</span></label>
+      <input type="range" id="interlace" min="0" max="100" value="0">
+    </div>
+    <div class="control" id="ctrl-curvature">
+      <label>Curvature <span class="val" id="val-curvature">20</span></label>
+      <input type="range" id="curvature" min="0" max="100" value="20">
+    </div>
+
+    <div class="section-label hideable" id="section-signal">Signal</div>
+
+    <div class="control hideable" id="ctrl-chromatic">
+      <label>Chromatic Ab. <span class="val" id="val-chromatic">15</span></label>
+      <input type="range" id="chromatic" min="0" max="100" value="15">
+    </div>
+    <div class="control hideable" id="ctrl-colorbleed">
+      <label>Color Bleed <span class="val" id="val-colorbleed">10</span></label>
+      <input type="range" id="colorbleed" min="0" max="100" value="10">
+    </div>
+    <div class="control hideable" id="ctrl-bloom">
+      <label>Bloom <span class="val" id="val-bloom">20</span></label>
+      <input type="range" id="bloom" min="0" max="100" value="20">
+    </div>
+
+    <div class="section-label">Noise</div>
+
+    <div class="control" id="ctrl-noise">
+      <label>Noise <span class="val" id="val-noise">10</span></label>
+      <input type="range" id="noise" min="0" max="100" value="10">
+    </div>
+    <div class="control" id="ctrl-flicker">
+      <label>Flicker <span class="val" id="val-flicker">5</span></label>
+      <input type="range" id="flicker" min="0" max="100" value="5">
+    </div>
   </div>
 
   <script src="popup.js"></script>

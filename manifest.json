@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Anime CRT TV Filter",
-  "version": "1.0.0",
-  "description": "Realistic CRT television filter for streaming anime — scanlines, phosphor glow, curvature, noise, and more.",
+  "version": "1.1.0",
+  "description": "Realistic CRT television filter for video — scanlines, phosphor grid, interlacing, color bleed, curvature, bloom, and more.",
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
