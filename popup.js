@@ -1,14 +1,16 @@
+// mask: 0 aperture grille, 1 slot mask, 2 shadow mask. lines: 0 = auto.
 const PRESETS = {
-  subtle:    { scanlines: 30, curvature: 20, chromatic: 15, bloom: 20, noise: 10, flicker: 5,  phosphor: 15, interlace: 0,  colorbleed: 10 },
-  heavy:     { scanlines: 70, curvature: 50, chromatic: 40, bloom: 50, noise: 30, flicker: 20, phosphor: 40, interlace: 30, colorbleed: 25 },
-  vhs:       { scanlines: 50, curvature: 10, chromatic: 60, bloom: 30, noise: 50, flicker: 40, phosphor: 0,  interlace: 20, colorbleed: 60 },
-  arcade:    { scanlines: 80, curvature: 30, chromatic: 20, bloom: 35, noise: 15, flicker: 10, phosphor: 70, interlace: 0,  colorbleed: 15 },
-  retro:     { scanlines: 60, curvature: 40, chromatic: 35, bloom: 40, noise: 25, flicker: 15, phosphor: 30, interlace: 45, colorbleed: 45 },
-  latenight: { scanlines: 45, curvature: 25, chromatic: 20, bloom: 55, noise: 20, flicker: 25, phosphor: 20, interlace: 15, colorbleed: 20 },
+  subtle:    { scanlines: 35, phosphor: 30, mask: 0, lines: 0,   interlace: 0,  curvature: 15, persistence: 15, sharpness: 60, colorbleed: 20, chromatic: 10, bloom: 25, glow: 20, colortemp: 20, noise: 5,  flicker: 5 },
+  heavy:     { scanlines: 75, phosphor: 60, mask: 1, lines: 240, interlace: 0,  curvature: 45, persistence: 35, sharpness: 40, colorbleed: 40, chromatic: 35, bloom: 50, glow: 45, colortemp: 50, noise: 20, flicker: 20 },
+  vhs:       { scanlines: 45, phosphor: 25, mask: 2, lines: 0,   interlace: 25, curvature: 20, persistence: 30, sharpness: 15, colorbleed: 80, chromatic: 50, bloom: 35, glow: 30, colortemp: 30, noise: 55, flicker: 30 },
+  arcade:    { scanlines: 85, phosphor: 70, mask: 2, lines: 240, interlace: 0,  curvature: 35, persistence: 20, sharpness: 80, colorbleed: 10, chromatic: 20, bloom: 40, glow: 35, colortemp: 10, noise: 5,  flicker: 5 },
+  retro:     { scanlines: 55, phosphor: 50, mask: 1, lines: 0,   interlace: 40, curvature: 40, persistence: 25, sharpness: 45, colorbleed: 50, chromatic: 30, bloom: 35, glow: 40, colortemp: 70, noise: 15, flicker: 10 },
+  latenight: { scanlines: 50, phosphor: 40, mask: 0, lines: 0,   interlace: 10, curvature: 25, persistence: 40, sharpness: 50, colorbleed: 30, chromatic: 20, bloom: 65, glow: 70, colortemp: 40, noise: 15, flicker: 25 },
 };
 
-const PARAMS = ['scanlines', 'curvature', 'chromatic', 'bloom', 'noise', 'flicker', 'phosphor', 'interlace', 'colorbleed'];
-const FULL_ONLY = ['chromatic', 'bloom', 'colorbleed']; // Need video pixel data
+const SLIDERS = ['scanlines', 'phosphor', 'interlace', 'curvature', 'persistence', 'sharpness', 'colorbleed', 'chromatic', 'bloom', 'glow', 'colortemp', 'noise', 'flicker'];
+const SELECTS = ['mask', 'lines'];
+const PARAMS = [...SELECTS, ...SLIDERS];
 
 let currentMode = null;
 let saveTimeout = null;
@@ -17,10 +19,10 @@ let activeDomain = null;
 function updateUI(settings) {
   document.getElementById('toggle').checked = settings.enabled !== false;
   for (const p of PARAMS) {
-    const slider = document.getElementById(p);
-    const val = document.getElementById('val-' + p);
-    slider.value = settings[p] ?? PRESETS.subtle[p];
-    val.textContent = slider.value;
+    document.getElementById(p).value = settings[p] ?? PRESETS.subtle[p];
+  }
+  for (const p of SLIDERS) {
+    document.getElementById('val-' + p).textContent = document.getElementById(p).value;
   }
   updatePresetButtons(settings);
   updateModeUI();
@@ -50,6 +52,7 @@ function updateModeUI() {
   // Show hint on signal section when in overlay mode
   const isOverlay = currentMode === 'overlay';
   document.getElementById('section-signal').classList.toggle('show-overlay-hint', isOverlay);
+  document.getElementById('section-glass').classList.toggle('show-overlay-hint', isOverlay);
 }
 
 function getSettings() {
@@ -90,14 +93,17 @@ function animateToPreset(preset) {
   const duration = 180;
   const start = performance.now();
   const from = {};
-  for (const p of PARAMS) {
+  for (const p of SLIDERS) {
     from[p] = parseInt(document.getElementById(p).value, 10);
+  }
+  for (const p of SELECTS) {
+    document.getElementById(p).value = preset[p];
   }
 
   function tick(now) {
     const t = Math.min((now - start) / duration, 1);
     const ease = t * (2 - t); // ease-out quad
-    for (const p of PARAMS) {
+    for (const p of SLIDERS) {
       const val = Math.round(from[p] + (preset[p] - from[p]) * ease);
       document.getElementById(p).value = val;
       document.getElementById('val-' + p).textContent = val;
@@ -116,11 +122,11 @@ function animateToPreset(preset) {
 // Toggle
 document.getElementById('toggle').addEventListener('change', () => save(getSettings()));
 
-// Sliders
+// Sliders and selects
 for (const p of PARAMS) {
-  const slider = document.getElementById(p);
-  slider.addEventListener('input', () => {
-    document.getElementById('val-' + p).textContent = slider.value;
+  const el = document.getElementById(p);
+  el.addEventListener(SELECTS.includes(p) ? 'change' : 'input', () => {
+    if (!SELECTS.includes(p)) document.getElementById('val-' + p).textContent = el.value;
     const settings = getSettings();
     updatePresetButtons(settings);
     debouncedSave(settings);

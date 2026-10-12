@@ -165,6 +165,32 @@ body {
 }
 .control input[type=range]::-webkit-slider-thumb:hover { background: #aaa; }
 
+/* ── Selects ── */
+.selects {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.selects label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #888;
+}
+.selects select {
+  background: #1e1e1e;
+  color: #ccc;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 3px 4px;
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+}
+.selects select:hover { border-color: #444; }
+
 /* Full-mode-only hint in overlay mode */
 .overlay-hint {
   font-size: 9px;
@@ -202,48 +228,85 @@ body {
       <button class="preset-btn" data-preset="latenight">Late Night</button>
     </div>
 
-    <div class="section-label">Screen</div>
+    <div class="section-label">Tube</div>
+
+    <div class="selects">
+      <label>Mask
+        <select id="mask">
+          <option value="0">Aperture grille</option>
+          <option value="1">Slot mask</option>
+          <option value="2">Shadow mask</option>
+        </select>
+      </label>
+      <label>Lines
+        <select id="lines">
+          <option value="0">Auto</option>
+          <option value="240">240p</option>
+          <option value="480">480i</option>
+          <option value="576">576i</option>
+        </select>
+      </label>
+    </div>
 
     <div class="control" id="ctrl-scanlines">
-      <label>Scanlines <span class="val" id="val-scanlines">30</span></label>
-      <input type="range" id="scanlines" min="0" max="100" value="30">
+      <label>Scanlines <span class="val" id="val-scanlines">35</span></label>
+      <input type="range" id="scanlines" min="0" max="100" value="35">
     </div>
     <div class="control" id="ctrl-phosphor">
-      <label>Phosphor <span class="val" id="val-phosphor">15</span></label>
-      <input type="range" id="phosphor" min="0" max="100" value="15">
+      <label>Phosphor Mask <span class="val" id="val-phosphor">30</span></label>
+      <input type="range" id="phosphor" min="0" max="100" value="30">
     </div>
     <div class="control" id="ctrl-interlace">
       <label>Interlace <span class="val" id="val-interlace">0</span></label>
       <input type="range" id="interlace" min="0" max="100" value="0">
     </div>
     <div class="control" id="ctrl-curvature">
-      <label>Curvature <span class="val" id="val-curvature">20</span></label>
-      <input type="range" id="curvature" min="0" max="100" value="20">
+      <label>Curvature <span class="val" id="val-curvature">15</span></label>
+      <input type="range" id="curvature" min="0" max="100" value="15">
+    </div>
+    <div class="control" id="ctrl-persistence">
+      <label>Persistence <span class="val" id="val-persistence">15</span></label>
+      <input type="range" id="persistence" min="0" max="100" value="15">
     </div>
 
     <div class="section-label" id="section-signal">Signal <span class="overlay-hint">full mode only</span></div>
 
-    <div class="control" id="ctrl-chromatic">
-      <label>Chromatic Ab. <span class="val" id="val-chromatic">15</span></label>
-      <input type="range" id="chromatic" min="0" max="100" value="15">
+    <div class="control" id="ctrl-sharpness">
+      <label>Sharpness <span class="val" id="val-sharpness">60</span></label>
+      <input type="range" id="sharpness" min="0" max="100" value="60">
     </div>
     <div class="control" id="ctrl-colorbleed">
-      <label>Color Bleed <span class="val" id="val-colorbleed">10</span></label>
-      <input type="range" id="colorbleed" min="0" max="100" value="10">
+      <label>Color Bleed <span class="val" id="val-colorbleed">20</span></label>
+      <input type="range" id="colorbleed" min="0" max="100" value="20">
     </div>
-    <div class="control" id="ctrl-bloom">
-      <label>Bloom <span class="val" id="val-bloom">20</span></label>
-      <input type="range" id="bloom" min="0" max="100" value="20">
+    <div class="control" id="ctrl-chromatic">
+      <label>Convergence <span class="val" id="val-chromatic">10</span></label>
+      <input type="range" id="chromatic" min="0" max="100" value="10">
     </div>
 
-    <div class="section-label">Noise</div>
+    <div class="section-label" id="section-glass">Glass <span class="overlay-hint">full mode only</span></div>
+
+    <div class="control" id="ctrl-bloom">
+      <label>Bloom <span class="val" id="val-bloom">25</span></label>
+      <input type="range" id="bloom" min="0" max="100" value="25">
+    </div>
+    <div class="control" id="ctrl-glow">
+      <label>Halation <span class="val" id="val-glow">20</span></label>
+      <input type="range" id="glow" min="0" max="100" value="20">
+    </div>
+    <div class="control" id="ctrl-colortemp">
+      <label>9300K White <span class="val" id="val-colortemp">20</span></label>
+      <input type="range" id="colortemp" min="0" max="100" value="20">
+    </div>
+
+    <div class="section-label">Interference</div>
 
     <div class="control" id="ctrl-noise">
-      <label>Noise <span class="val" id="val-noise">10</span></label>
-      <input type="range" id="noise" min="0" max="100" value="10">
+      <label>Noise <span class="val" id="val-noise">5</span></label>
+      <input type="range" id="noise" min="0" max="100" value="5">
     </div>
     <div class="control" id="ctrl-flicker">
-      <label>Flicker <span class="val" id="val-flicker">5</span></label>
+      <label>Hum / Flicker <span class="val" id="val-flicker">5</span></label>
       <input type="range" id="flicker" min="0" max="100" value="5">
     </div>
   </div>
